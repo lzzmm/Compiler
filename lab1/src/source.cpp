@@ -5,6 +5,7 @@
 #include <iostream>
 
 #define STOPWHENERROR false // if true, STOP analysis when error occurs
+#define NOMULTICHAR   false // if true, multi-char char tokens are not allowed
 #define INFILE        "wrong_demo.c"
 #define OUTFILE       "tokens1.txt"
 #define IDENTIFIER    00
@@ -118,7 +119,8 @@ inline int isOperatorOrDelimiter(const char *str) {
 
 inline bool tokenStartWithLetter(const char *str, char *token, int &syn, int &p, unsigned int &token_index) {
     /*
-     generate a token start with letter
+     generate a token start with a letter
+     @return: always return true
      */
     token[token_index++] = str[p++];
 
@@ -135,12 +137,24 @@ inline bool tokenStartWithLetter(const char *str, char *token, int &syn, int &p,
 }
 
 inline bool tokenStartWithDigit(const char *str, char *token, int &syn, int &p, unsigned int &token_index) {
-    token[token_index++]   = str[p++];
+    /*
+     generate a token start with a digit
+     @return: true if no error occurs
+     */
     bool exist_e           = false;
     bool exist_dot         = false;
     bool is_invalid_number = false;
+    token[token_index++]   = str[p++];
 
-    while (isDigit(str[p]) or str[p] == '.' or str[p] == 'e' or str[p] == 'E' or (str[p] == '-' and str[p - 1] == 'e' or str[p - 1] == 'E')) {
+    if (str[p] == 'x' or str[p] == 'X') {
+        if (str[p - 1] == '0') {
+            token[token_index++] = str[p++];
+        } else {
+            is_invalid_number = true;
+        }
+    }
+
+    while (isDigit(str[p]) or str[p] == '.' or str[p] == 'e' or str[p] == 'E' or ((str[p] == '-' or str[p] == '+') and (str[p - 1] == 'e' or str[p - 1] == 'E'))) {
         if (str[p] == 'e' or str[p] == 'E') { // scientific notation
             if (exist_e) {
                 is_invalid_number = true;
@@ -150,16 +164,20 @@ inline bool tokenStartWithDigit(const char *str, char *token, int &syn, int &p, 
         }
         if (str[p] == '.') {
             if (exist_dot) {
+                // TODO: jump to invalid suffix
                 is_invalid_number = true;
             }
             exist_dot = true;
         }
-        // if (str[p] == '-') {
-        //     if (!(str[p - 1] == 'e' or str[p - 1] == 'E')) {
-        //         is_invalid_number = true;
-        //     }
-        // }
         token[token_index++] = str[p++];
+    }
+
+    if (str[p] == 'F' or str[p] == 'f') {
+        token[token_index++] = str[p++];
+    } else if (isLetter(str[p])) {
+        // char         suffix[10];
+        // unsigned int suffix_index = 0;
+        cout << "Error: invalid suffix \"" << str[p] << "\" on constant " << token << endl;
     }
 
     token[token_index] = '\0';
@@ -168,9 +186,14 @@ inline bool tokenStartWithDigit(const char *str, char *token, int &syn, int &p, 
         cout << "Error: invalid number " << token << endl;
         return false;
     }
+    return true;
 }
 
 inline bool tokenStartWithOperatorOrDelimiter(const char *str, char *token, int &syn, int &p, unsigned int &token_index) {
+    /*
+     generate a token start with an operator or delimiter
+     @return: always return true
+     */
     token[token_index++] = str[p++];
     if (isTheSecondCharOfOperatorOrDelimiter(str[p])) {
         token[token_index++] = str[p++];
@@ -185,30 +208,45 @@ inline bool tokenStartWithOperatorOrDelimiter(const char *str, char *token, int 
 }
 
 inline bool tokenStartWithSingleQuote(const char *str, char *token, int &syn, int &p, unsigned int &token_index) {
-    if ((str[p + 1] == '\\' and str[p + 3] != '\'') or str[p + 2] != '\'') {
-        cout << "Error: invalid character constant" << endl;
+    /*
+     generate a token start with a single quote
+     @return: true if no error occurs
+     */
+    do {
+        token[token_index++] = str[p++];
+    } while (str[p] != '\'');
+
+    token[token_index++] = str[p++];
+    token[token_index]   = '\0';
+    syn                  = CHARACTER;
+
+    if (!(token[1] == '\\' and token[3] == '\'') and token[2] != '\'') {
+#if !NOMULTICHAR
+        cout << "Warning: multi-character character constant " << token << endl;
+#endif
+#if NOMULTICHAR
+        cout << "Error: multi-character character constant " << token << endl;
         return false;
+#endif
     }
-    unsigned int token_len = str[p + 1] == '\\' ? 4 : 3;
 
-    for (auto i = 0; i < token_len; i++) token[token_index++] = str[p++];
-
-    token[token_index] = '\0';
-    syn                = CHARACTER;
     return true;
 }
 
 inline bool tokenStartWithDoubleQuote(const char *str, char *token, int &syn, int &p, unsigned int &token_index) {
+    /*
+     generate a token start with a double quote
+     @return: true if no error occurs
+     */
+    // token[token_index++] = str[p++];
 
-    token[token_index++] = str[p++];
-
-    while (str[p] != '\"') {
+    do {
         token[token_index++] = str[p++];
         if (str[p] == '\0') {
             cout << "Error: invalid string constant" << endl;
             return false;
         }
-    }
+    } while (str[p] != '\"');
 
     token[token_index++] = str[p++];
     token[token_index]   = '\0';
@@ -311,7 +349,7 @@ int main() {
     ofstream out(OUTFILE);
 
     // Read from file
-    cout << "Reading source code from file..." << endl;
+    cout << "Reading source code from \"" << INFILE << "\"..." << endl;
 
     if (!in.is_open()) {
         cout << "Error: cannot open file" << endl;
@@ -341,7 +379,7 @@ int main() {
     while (syn != ENDOFCODE) {
 #if STOPWHENERROR
         if (!scanner(code, token, syn, p)) {
-            cout << "Scanner terminated with error." << endl;
+            cout << "Scanner terminated." << endl;
             return 0;
         }
 #endif
