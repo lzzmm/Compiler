@@ -15,6 +15,7 @@ C语言源程序文件：demo.c（实验输入）
 
 ## 文件树
 
+```
 lab1
 │   README.md
 │
@@ -25,6 +26,7 @@ lab1
         source.exe
         tokens.txt
         wrongDemo.c
+```
 
 ## 设计词法分析器
 
