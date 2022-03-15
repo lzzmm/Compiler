@@ -39,9 +39,11 @@ int main(int argc, char *argv[]) {
     long double q      = 1e1u;        // error
     long double r      = 1e1e1;       // error
     if (b * c <= d || b * c >= a)
-        printf("b*c is less than or equal to d or greater than a\n");
+        printf("b*c is less than or \\
+        equal to d or greater than a\n"); // warning
     else
-        printf("b*c is greater than d and less than a\n");
+        printf("b*c is greater than d
+         and less than a\n");   //error
 
     return 0;
 }

@@ -16,7 +16,7 @@
 
 /*
  TODO:
- 1. error reporting (50%)
+ 1. error reporting (50%) show line number and column number
  2. test all occurences (tbd)
  3. write report (tbd)
  4. make the code more clean and beautiful (50%)
@@ -41,6 +41,39 @@ static char OperatorOrDelimiter[36][3] = {
     "(", ")", "^", ",", "\"", "\'", "#", "&", "|",
     "%", "~", "[", "]", "{", "}", "\\", ".", "\?", ":",
     "&&", "||", "<<", ">>", "==", "<=", "!=", ">="};
+
+class Scanner {
+public:
+    Scanner() : str(nullptr), p(0), row(1), col(1) {};
+    Scanner(char *str, int p = 0) : str(str), p(p), row(1), col(1) {};
+    ~Scanner(){};
+    char *getString(void) const { return str; };
+    void  setString(char *str) { this->str = str; };
+    int   getPos(void) const { return p; };
+    void  setPos(int p) { this->p = p; };
+    bool  scan(char *token, int &syn);
+    void  setRow(int row) { this->row = row; };
+    void  setCol(int col) { this->col = col; };
+    int   getRow(void) const { return row; };
+    int   getCol(void) const { return col; };
+
+private:
+    inline void handleTypeSuffix(char *token, unsigned int &token_index, const bool is_double);
+    inline void handleInvalidSuffix(char *token);
+    inline bool binaryNumber(char *token, int &syn, unsigned int &token_index);
+    inline bool octalNumber(char *token, int &syn, unsigned int &token_index);
+    inline bool decimalNumber(char *token, int &syn, unsigned int &token_index);
+    inline bool hexadecimalNumber(char *token, int &syn, unsigned int &token_index);
+    inline bool tokenStartWithDigit(char *token, int &syn, unsigned int &token_index);
+    inline bool tokenStartWithOperatorOrDelimiter(char *token, int &syn, unsigned int &token_index);
+    inline bool tokenStartWithSingleQuote(char *token, int &syn, unsigned int &token_index);
+    inline bool tokenStartWithDoubleQuote(char *token, int &syn, unsigned int &token_index);
+    inline bool tokenStartWithLetter(char *token, int &syn, unsigned int &token_index);
+    inline void rightShift(char *token, unsigned int &token_index, unsigned int num);
+
+    char *str;
+    int   p, row, col;
+};
 
 inline bool isDigit(const char c) {
     /*
@@ -74,11 +107,11 @@ inline int isReservedWord(const char *str) {
     return -1;
 }
 
-inline bool isTheFirstCharOfOperatorOrDelimiter(const char c) {
+inline bool isFirstOfOperatorOrDelimiter(const char c) {
     /*
-     check if the character is the first character of a operator or delimiter
+     check if the character is the first character of a operator or a delimiter
      @param c: the character to be checked
-     @return: true if the character is the first character of a operator or delimiter
+     @return: true if the character is the first character of a operator or a delimiter
      */
     for (int i = 0; i < 36; i++) {
         if (c == OperatorOrDelimiter[i][0]) {
@@ -88,15 +121,15 @@ inline bool isTheFirstCharOfOperatorOrDelimiter(const char c) {
     return false;
 }
 
-inline bool isTheSecondCharOfOperatorOrDelimiter(const char c) {
+inline bool isSecondOfOperator(const char c) {
     /*
-     check if the character is the second character of a operator or delimiter
+     check if the character is the second character of a operator
      @param c: the character to be checked
-     @return: true if the character is the second character of a operator or delimiter
+     @return: true if the character is the second character of a operator
      */
     if (c == '\0') return false;
     for (int i = 28; i <= 35; i++) {
-        // there is no 2-character operator or delimiter before 28
+        // there is no 2-character operator before 28
         if (c == OperatorOrDelimiter[i][1]) {
             return true;
         }
@@ -117,17 +150,22 @@ inline int isOperatorOrDelimiter(const char *str) {
     }
     return -1;
 }
+inline void Scanner::rightShift(char *token, unsigned int &token_index, unsigned int num = 1) {
+    while (num--) {
+        token[token_index++] = str[p++];
+        col++;
+    }
+}
 
-inline bool tokenStartWithLetter(const char *str, char *token, int &syn, int &p,
-                                 unsigned int &token_index) {
+inline bool Scanner::tokenStartWithLetter(char *token, int &syn, unsigned int &token_index) {
     /*
      generate a token start with a letter
      @return: always return true
      */
-    token[token_index++] = str[p++];
+    rightShift(token, token_index);
 
     while (isLetter(str[p]) || isDigit(str[p]) || str[p] == '_') {
-        token[token_index++] = str[p++];
+        rightShift(token, token_index);
     }
 
     token[token_index] = '\0';
@@ -138,14 +176,14 @@ inline bool tokenStartWithLetter(const char *str, char *token, int &syn, int &p,
     return true;
 }
 
-inline void handleInvalidSuffix(const char *str, char *token, int &p) {
+inline void Scanner::handleInvalidSuffix(char *token) {
     /*
      handle invalid suffix
      */
     static const int suffix_len             = 10;
     char             suffix[suffix_len + 4] = {'\0'};
     unsigned int     suffix_index           = 0;
-    while (!isTheFirstCharOfOperatorOrDelimiter(str[p]) &&
+    while (!isFirstOfOperatorOrDelimiter(str[p]) &&
                str[p] != ' ' && str[p] != '\0' ||
            str[p] == '.') {
         if (suffix_index < suffix_len - 1) {
@@ -157,24 +195,25 @@ inline void handleInvalidSuffix(const char *str, char *token, int &p) {
             p++;
         }
     }
-    cout << "Error: invalid suffix \"" << suffix << "\" on constant " << token << endl;
+    cout << INFILE << ":" << row << ":" << col << " "
+         << "\033[31mError:\033[0m invalid suffix \"" << suffix << "\" on constant " << token << endl;
 }
 
-inline bool octalNumber(const char *str, char *token, int &syn, int &p,
-                        unsigned int &token_index) {
+inline bool Scanner::octalNumber(char *token, int &syn,
+                                 unsigned int &token_index) {
     /*
      generate a token start with 0
      @return: always return true
      */
-    token[token_index++] = str[p++];
+    rightShift(token, token_index);
 
     while (isDigit(str[p]) && str[p] <= '7') {
-        token[token_index++] = str[p++];
+        rightShift(token, token_index);
     }
 
-    if (!isTheFirstCharOfOperatorOrDelimiter(str[p]) &&
+    if (!isFirstOfOperatorOrDelimiter(str[p]) &&
         str[p] != ' ' && str[p] != '\0') {
-        handleInvalidSuffix(str, token, p);
+        handleInvalidSuffix(token);
         return false;
     }
 
@@ -184,23 +223,22 @@ inline bool octalNumber(const char *str, char *token, int &syn, int &p,
     return true;
 }
 
-inline bool hexadecimalNumber(const char *str, char *token, int &syn, int &p,
-                              unsigned int &token_index) {
+inline bool Scanner::hexadecimalNumber(char *token, int &syn,
+                                       unsigned int &token_index) {
     /*
      generate a token start with 0x
      @return: always return true
      */
-    token[token_index++] = str[p++];
-    token[token_index++] = str[p++];
+    rightShift(token, token_index, 2);
 
     while (isDigit(str[p]) || (str[p] >= 'a' && str[p] <= 'f') ||
            (str[p] >= 'A' && str[p] <= 'F')) {
-        token[token_index++] = str[p++];
+        rightShift(token, token_index);
     }
 
-    if (!isTheFirstCharOfOperatorOrDelimiter(str[p]) &&
+    if (!isFirstOfOperatorOrDelimiter(str[p]) &&
         str[p] != ' ' && str[p] != '\0') {
-        handleInvalidSuffix(str, token, p);
+        handleInvalidSuffix(token);
         return false;
     }
 
@@ -210,22 +248,22 @@ inline bool hexadecimalNumber(const char *str, char *token, int &syn, int &p,
     return true;
 }
 
-inline bool binaryNumber(const char *str, char *token, int &syn, int &p,
-                         unsigned int &token_index) {
+inline bool Scanner::binaryNumber(char *token, int &syn,
+                                  unsigned int &token_index) {
     /*
      generate a token start with 0b
      @return: always return true
      */
-    token[token_index++] = str[p++];
-    token[token_index++] = str[p++];
+    rightShift(token, token_index, 2);
 
     while (str[p] == '0' || str[p] == '1') {
         token[token_index++] = str[p++];
+        col++;
     }
 
-    if (!isTheFirstCharOfOperatorOrDelimiter(str[p]) &&
+    if (!isFirstOfOperatorOrDelimiter(str[p]) &&
         str[p] != ' ' && str[p] != '\0') {
-        handleInvalidSuffix(str, token, p);
+        handleInvalidSuffix(token);
         return false;
     }
 
@@ -234,41 +272,53 @@ inline bool binaryNumber(const char *str, char *token, int &syn, int &p,
     return true;
 }
 
-inline void handleTypeSuffix(const char *str, char *token, int &p,
-                             unsigned int &token_index, const bool is_double) {
+inline void Scanner::handleTypeSuffix(char         *token,
+                                      unsigned int &token_index, const bool is_double) {
     /*
      handle type suffix U L F
      */
     if (is_double) { // only f/F or l/L is valid suffix on double
         if (str[p] == 'F' || str[p] == 'f') {
-            token[token_index++] = str[p++];
+            rightShift(token, token_index);
         } else if (str[p] == 'L' || str[p] == 'l') {
-            token[token_index++] = str[p++];
+            rightShift(token, token_index);
         }
     } else { // u/U l/L ll/LL are valid suffix on int
         if (str[p] == 'L') {
-            token[token_index++] = str[p++];
-            if (str[p] == 'L') token[token_index++] = str[p++];                  // LL
-            if (str[p] == 'U' || str[p] == 'u') token[token_index++] = str[p++]; // LLU/LLu/LU/Lu
+            rightShift(token, token_index);
+            if (str[p] == 'L') { // LL
+                rightShift(token, token_index);
+            }
+            if (str[p] == 'U' || str[p] == 'u') { // LLU/LLu/LU/Lu
+                rightShift(token, token_index);
+            }
         } else if (str[p] == 'l') {
-            token[token_index++] = str[p++];
-            if (str[p] == 'l') token[token_index++] = str[p++];                  // ll
-            if (str[p] == 'U' || str[p] == 'u') token[token_index++] = str[p++]; // llU/llu/lU/lu
+            rightShift(token, token_index);
+            if (str[p] == 'l') { // ll
+                rightShift(token, token_index);
+            }
+            if (str[p] == 'U' || str[p] == 'u') { // llU/llu/lU/lu
+                rightShift(token, token_index);
+            }
         } else if (str[p] == 'U' || str[p] == 'u') {
-            token[token_index++] = str[p++];
-            if (str[p] == 'L') {
-                token[token_index++] = str[p++];                    // UL/uL
-                if (str[p] == 'L') token[token_index++] = str[p++]; // ULL/uLL
-            } else if (str[p] == 'l') {
-                token[token_index++] = str[p++];                    // Ul/ul
-                if (str[p] == 'l') token[token_index++] = str[p++]; // Ull/ull
+            rightShift(token, token_index);
+            if (str[p] == 'L') { // UL/uL
+                rightShift(token, token_index);
+                if (str[p] == 'L') { // ULL/uLL
+                    rightShift(token, token_index);
+                }
+            } else if (str[p] == 'l') { // Ul/ul
+                rightShift(token, token_index);
+                if (str[p] == 'l') { // Ull/ull
+                    rightShift(token, token_index);
+                }
             }
         }
     }
 }
 
-inline bool decimalNumber(const char *str, char *token, int &syn, int &p,
-                          unsigned int &token_index) {
+inline bool Scanner::decimalNumber(char *token, int &syn,
+                                   unsigned int &token_index) {
     /*
      generate a decimal token start with a digit
      @return: always return true
@@ -276,15 +326,16 @@ inline bool decimalNumber(const char *str, char *token, int &syn, int &p,
     bool exist_e           = false;
     bool exist_dot         = false;
     bool is_invalid_number = false;
-    if (str[p] != '.') token[token_index++] = str[p++]; // .01f is also a number
-
+    if (str[p] != '.') { // .01f is also a number
+        rightShift(token, token_index);
+    }
     while (isDigit(str[p]) || str[p] == '.' or
            str[p] == 'e' || str[p] == 'E' or
            ((str[p] == '-' || str[p] == '+') &&
             (str[p - 1] == 'e' || str[p - 1] == 'E'))) {
         if (str[p] == 'e' || str[p] == 'E') { // scientific notation
             if (exist_e) {
-                handleInvalidSuffix(str, token, p);
+                handleInvalidSuffix(token);
                 is_invalid_number = true;
             }
             exist_e   = true;
@@ -292,30 +343,30 @@ inline bool decimalNumber(const char *str, char *token, int &syn, int &p,
         }
         if (str[p] == '.') {
             if (exist_dot) {
-                handleInvalidSuffix(str, token, p);
+                handleInvalidSuffix(token);
                 is_invalid_number = true;
             }
             exist_dot = true;
         }
-        token[token_index++] = str[p++];
+        rightShift(token, token_index);
     }
 
     // type suffix
     if (str[p] == 'f' || str[p] == 'u' || str[p] == 'l' ||
         str[p] == 'F' || str[p] == 'U' || str[p] == 'L') {
-        handleTypeSuffix(str, token, p, token_index, exist_dot || exist_e);
+        handleTypeSuffix(token, token_index, exist_dot || exist_e);
     }
 
-    if (!isTheFirstCharOfOperatorOrDelimiter(str[p]) &&
+    if (!isFirstOfOperatorOrDelimiter(str[p]) &&
         str[p] != ' ' && str[p] != '\0') {
-        handleInvalidSuffix(str, token, p);
+        handleInvalidSuffix(token);
         return false;
     }
 
     token[token_index] = '\0';
     syn                = NUMBER;
     if (is_invalid_number) {
-        // cout << "Error: invalid number " << token << endl;
+        // cout << "\033[31mError:\033[0m invalid number " << token << endl;
         return false;
     }
     return true;
@@ -323,33 +374,33 @@ inline bool decimalNumber(const char *str, char *token, int &syn, int &p,
 
 // inline void checkInvalidSuffixOnConstants(const char c) {}
 
-inline bool tokenStartWithDigit(const char *str, char *token, int &syn, int &p,
-                                unsigned int &token_index) {
+inline bool Scanner::tokenStartWithDigit(char *token, int &syn,
+                                         unsigned int &token_index) {
     /*
      generate a token start with a digit
      @return: true if no error occurs
      */
     if (str[p] == '0' && (str[p + 1] == 'x' || str[p + 1] == 'X')) { // hexadecimal
-        return hexadecimalNumber(str, token, syn, p, token_index);
+        return hexadecimalNumber(token, syn, token_index);
     } else if (str[p] == '0' && (str[p + 1] == 'b' || str[p + 1] == 'B')) { // binary
-        return binaryNumber(str, token, syn, p, token_index);
+        return binaryNumber(token, syn, token_index);
     } else if (str[p] == '0' && (isDigit(str[p + 1]))) { // octal
-        return octalNumber(str, token, syn, p, token_index);
+        return octalNumber(token, syn, token_index);
     } else { // decimal
-        return decimalNumber(str, token, syn, p, token_index);
+        return decimalNumber(token, syn, token_index);
     }
 }
 
-inline bool tokenStartWithOperatorOrDelimiter(const char *str, char *token, int &syn, int &p,
-                                              unsigned int &token_index) {
+inline bool Scanner::tokenStartWithOperatorOrDelimiter(char *token, int &syn,
+                                                       unsigned int &token_index) {
     /*
      generate a token start with an operator or delimiter
      @return: always return true
      */
-    if (str[p] == '.' && isDigit(str[p + 1])) return decimalNumber(str, token, syn, p, token_index);
-    token[token_index++] = str[p++];
-    if (isTheSecondCharOfOperatorOrDelimiter(str[p])) {
-        token[token_index++]   = str[p++];
+    if (str[p] == '.' && isDigit(str[p + 1])) return decimalNumber(token, syn, token_index);
+    rightShift(token, token_index);
+    if (isSecondOfOperator(str[p])) {
+        rightShift(token, token_index);
         char three_char_str[3] = {token[0], token[1], '\0'};
         syn                    = isOperatorOrDelimiter(three_char_str);
     } else {
@@ -360,26 +411,26 @@ inline bool tokenStartWithOperatorOrDelimiter(const char *str, char *token, int 
     return true;
 }
 
-inline bool tokenStartWithSingleQuote(const char *str, char *token, int &syn, int &p,
-                                      unsigned int &token_index) {
+inline bool Scanner::tokenStartWithSingleQuote(char *token, int &syn,
+                                               unsigned int &token_index) {
     /*
      generate a token start with a single quote
      @return: true if no error occurs
      */
     do {
-        token[token_index++] = str[p++];
+        rightShift(token, token_index);
     } while (str[p] != '\'');
-
-    token[token_index++] = str[p++];
-    token[token_index]   = '\0';
-    syn                  = CHARACTER;
+    rightShift(token, token_index);
+    token[token_index] = '\0';
+    syn                = CHARACTER;
 
     if (!(token[1] == '\\' && token[3] == '\'') && token[2] != '\'') {
 #if !NOMULTICHAR
-        cout << "Warning: multi-character character constant " << token << endl;
+        cout << INFILE << ":" << row << ":" << col << " "
+             << "\033[35mWarning:\033[0m multi-character character constant " << token << endl;
 #endif
 #if NOMULTICHAR
-        cout << "Error: multi-character character constant " << token << endl;
+        cout << "\033[31mError:\033[0m multi-character character constant " << token << endl;
         return false;
 #endif
     }
@@ -387,25 +438,29 @@ inline bool tokenStartWithSingleQuote(const char *str, char *token, int &syn, in
     return true;
 }
 
-inline bool tokenStartWithDoubleQuote(const char *str, char *token, int &syn, int &p,
-                                      unsigned int &token_index) {
+inline bool Scanner::tokenStartWithDoubleQuote(char *token, int &syn,
+                                               unsigned int &token_index) {
     /*
      generate a token start with a double quote
      @return: true if no error occurs
      */
     // token[token_index++] = str[p++];
-
     do {
-        token[token_index++] = str[p++];
-        if (str[p] == '\0') {
-            cout << "Error: invalid string constant: unclosed string" << endl;
+        rightShift(token, token_index);
+        if ((str[p] == '\n' && (str[p - 1] != '\\' || str[p - 2] != '\\')) || str[p] == '\0') {
+            cout << INFILE << ":" << row << ":" << col << " "
+                 << "\033[31mError:\033[0m invalid string constant: missing closing quote, unclosed string" << endl;
             return false;
+        } else if (str[p] == '\n' && str[p - 1] == '\\' && str[p - 2] == '\\') {
+            cout << INFILE << ":" << row << ":" << col << " "
+                 << "\033[35mWarning:\033[0m unknown escape sequence: \'\\040\'"
+                 << endl;
+            row++;
         }
     } while (str[p] != '\"');
-
-    token[token_index++] = str[p++];
-    token[token_index]   = '\0';
-    syn                  = STRING;
+    rightShift(token, token_index);
+    token[token_index] = '\0';
+    syn                = STRING;
     return true;
 }
 
@@ -418,7 +473,7 @@ bool filter(char *str, const int len) {
     char filteredCode[CODE_LEN];
     int  p = 0;
 
-    for (int i = 0; i < len; i++) {
+    for (int i = 0; i < len;) {
         if ((str[i] == '/' && str[i + 1] == '/') ||
             (str[i] == '#' && (i == 0 || str[i - 1] == '\n'))) {
             // filter single line comments or preprocessor directives
@@ -429,25 +484,28 @@ bool filter(char *str, const int len) {
             i += 2;
             while (str[i] != '*' || str[i + 1] != '/') {
                 if (str[i] == '\0') {
-                    cout << "Error: unclosed comment" << endl;
+                    cout << "\033[31mError:\033[0m unclosed comment" << endl;
                     return false;
+                } else if (str[i] == '\n') {
+                    filteredCode[p++] = str[i++];
+                } else {
+                    i++;
                 }
-                i++;
             }
             i += 2;
         }
-        if (str[i] != '\n' && str[i] != '\t' &&
-            str[i] != '\v' && str[i] != '\r') { // filter tabulator key
-            filteredCode[p++] = str[i];
+        // if (str[i] != '\n' && str[i] != '\t' &&
+        //     str[i] != '\v' && str[i] != '\r') { // filter tabulator key
+        if (str[i] != '\t' && str[i] != '\v' && str[i] != '\r') {
+            filteredCode[p++] = str[i++];
         }
     }
-
     filteredCode[p] = '\0';
     strcpy(str, filteredCode);
     return true;
 }
 
-bool scanner(char *str, char *token, int &syn, int &p) {
+bool Scanner::scan(char *token, int &syn) {
     /*
      scan the code and generate tokens
      @param str: the code to be scanned
@@ -455,32 +513,36 @@ bool scanner(char *str, char *token, int &syn, int &p) {
      @param syn: the index of the token in the array
      @param p: the index of the current character in the code
      */
-
     unsigned int token_index = 0;
-
     // skip the spaces
-    while (str[p] == ' ') p++;
-
+    while (str[p] == ' ') {
+        p++;
+        col++;
+    }
+    while (str[p] == '\n') {
+        p++;
+        row++;
+        col = 1;
+    }
     // clear token
     while (token[token_index] != '\0') token[token_index++] = '\0';
     token_index = 0;
-
     if (isLetter(str[p])) {
         // start with a letter must be a reserved word or an identifier
-        return tokenStartWithLetter(str, token, syn, p, token_index);
+        return tokenStartWithLetter(token, syn, token_index);
     } else if (isDigit(str[p])) {
         // start with a digit must be a number
-        return tokenStartWithDigit(str, token, syn, p, token_index);
+        return tokenStartWithDigit(token, syn, token_index);
     } else if (str[p] == '\'') {
         // start with a single quote must be a character constant
-        return tokenStartWithSingleQuote(str, token, syn, p, token_index);
+        return tokenStartWithSingleQuote(token, syn, token_index);
     } else if (str[p] == '\"') {
         // start with a double quote must be a string constant
-        return tokenStartWithDoubleQuote(str, token, syn, p, token_index);
-    } else if (isTheFirstCharOfOperatorOrDelimiter(str[p])) {
+        return tokenStartWithDoubleQuote(token, syn, token_index);
+    } else if (isFirstOfOperatorOrDelimiter(str[p])) {
         // must after the judgement of charater and string, because \' and \" is also a delimiter
         // start with an operator or delimiter must be an operator or delimiter
-        return tokenStartWithOperatorOrDelimiter(str, token, syn, p, token_index);
+        return tokenStartWithOperatorOrDelimiter(token, syn, token_index);
     } else if (str[p] == '\0') {
         // end of the code
         syn = ENDOFCODE;
@@ -500,7 +562,7 @@ int main(int argc, char *argv[]) {
 
     cout << "Reading source code from \"" << INFILE << "\"..." << endl;
     if (!in.is_open()) {
-        cout << "Error: cannot open file" << endl;
+        cout << "\033[31mError:\033[0m cannot open file" << endl;
         return -1;
     }
     while (!in.eof()) {
@@ -516,18 +578,20 @@ int main(int argc, char *argv[]) {
         return 0;
         // #endif
     }
+    // cout << code << endl;
     p = 0;
 
     cout << "Starting lexical syntax analysis..." << endl;
+    Scanner scanner(code);
     while (syn != ENDOFCODE) {
 #if STOPWHENERROR
-        if (!scanner(code, token, syn, p)) {
+        if (!scanner.scan(token, syn)) {
             cout << "Scanner terminated." << endl;
             return 0;
         }
 #endif
 #if !STOPWHENERROR
-        scanner(code, token, syn, p);
+        scanner.scan(token, syn);
 #endif
         if (syn >= 0 && syn <= 71) {
             out << "<" << token << ", " << syn << ">" << endl;
@@ -535,7 +599,7 @@ int main(int argc, char *argv[]) {
         }
     }
     cout << "Lexical syntax analysis complete." << endl
-         << "See \"tokens.txt\"." << endl;
+         << "See \"" << OUTFILE << "\" ." << endl;
     out.close();
     return 0;
 }

@@ -1,5 +1,7 @@
 # Temp
 *.vscode
+temp*
+19335025*
 
 # Prerequisites
 *.d
