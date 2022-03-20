@@ -22,7 +22,7 @@ int main(int argc, char *argv[]) {
     int 0abc;                         // error
     long long   a      = 0llu;        // pass
     float       b      = .01f;        // pass
-    double      c      = -3.14159;    // pass
+    long double c      = -3.14159l;   // pass
     float       d      = -1.414E-2f;  // pass
     char        AbCd_e = 'a';         // pass
     double      f      = 1e-2.123;    // error
@@ -38,6 +38,7 @@ int main(int argc, char *argv[]) {
     long double p      = 1e1l;        // pass
     long double q      = 1e1u;        // error
     long double r      = 1e1e1;       // error
+    double      s      = .2e-4l;      // pass
     if (b * c <= d || b * c >= a)
         printf("b*c is less than or \\
         equal to d or greater than a\n"); // warning
