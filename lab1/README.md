@@ -18,11 +18,15 @@ lab1
 ```
 
 C 语言词法分析源程序：`source.c`
+
 C 语言词法分析程序的可执行文件：`source.exe`
+
 C语言源程序文件：`demo.c` & `wrong_demo.c`（实验输入）
+
 词法分析及结果文件： `tokens.txt` & `tokens_wd.txt`（实验输出）
 
 输入一个 C 语言源程序文件，如 `demo.c`。
+
 输出一个文件 `tokens.txt`，该文件包括每一个单词及其种类枚举值，每行一个单词。
 
 ## 设计词法分析器
