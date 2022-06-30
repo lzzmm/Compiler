@@ -14,14 +14,6 @@
 #define NUMBER        03
 #define ENDOFCODE     99
 
-/*
- TODO:
- 1. error reporting show line number and column number (100%)
- 2. test all occurences (tbd)
- 3. write report (tbd)
- 4. make the code more clean and beautiful (80%)
-*/
-
 static const unsigned int TOKEN_LEN = 1024;   // max length of a token
 static const unsigned int CODE_LEN  = 100000; // max length of code
 
@@ -163,10 +155,9 @@ inline void Scanner::rightShift(char *token, unsigned int &token_index, unsigned
     if (token_index + num > TOKEN_LEN) {
         std::cerr << "\033[31mError:\033[0m token length overflow" << std::endl;
 #if STOPWHENERROR
-        // exit(1);
+        exit(1);
 #endif
         p += num;
-
         return;
     }
     while (num--) {
