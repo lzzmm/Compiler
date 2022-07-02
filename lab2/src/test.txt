@@ -1,0 +1,11 @@
+10
+E->TX
+X->+TX
+X->-TX
+X->e
+T->FY
+Y->*FY
+Y->/FY
+Y->e
+F->a
+F->(E)
