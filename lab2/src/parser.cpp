@@ -5,6 +5,7 @@
 //
 // Parser in LL(1) and LR(0)
 // Compile: g++ -o parser parser.cpp
+// Run: ./parser [grammar file] [input file]
 
 /*
  TODO:
@@ -45,7 +46,7 @@ void error(int indexOfSyntaxError, const char errorMsg[], const char str[]) {
     for (int i = 0; i < indexOfSyntaxError; i++) {
         std::cout << ' ';
     }
-    std::cout << '^' << std::endl;
+    std::cout << "\033[31m^\033[0m" << std::endl;
 }
 class LL1 {
 public:
@@ -89,10 +90,10 @@ int main(int argc, char *argv[]) {
         scanf("%s", &input_path);
         input_fp = fopen(input_path, "r");
     } else {
-        grammar_fp = fopen("test.txt", "r");
-        // grammar_fp = fopen(argv[1], "r");
-        input_fp   = fopen("str.txt", "r");
-        // input_fp = fopen(argv[2], "r");
+        // grammar_fp = fopen("test.txt", "r");
+        grammar_fp = fopen(argv[1], "r");
+        // input_fp   = fopen("str.txt", "r");
+        input_fp = fopen(argv[2], "r");
     }
     if (grammar_fp == NULL) {
         printf("Can't open the file! Terminated.\n");
@@ -122,12 +123,9 @@ void LL1::parse(FILE *fp) {
     _str[str_size++] = '\0';
     // TODO:
     // parse the string with the table
-    bool get_next = true;
-    char cur_term,
-        cur_non_term,
-        x,
-        w;
-    int str_pointer = 0,
+    char x, w;
+    bool get_next    = true;
+    int  str_pointer = 0,
         cur_non_term_idx,
         cur_term_idx,
         cur_rule_no;
@@ -189,7 +187,7 @@ void LL1::parse(FILE *fp) {
             cur_non_term_idx = _nonTerminatorsToIdx[x];
             cur_rule_no      = _analysisTable[cur_non_term_idx][cur_term_idx];
             if (cur_rule_no == -1) {
-                error(str_pointer - 1, "Error: Unexpected Terminal found.", _str);
+                error(str_pointer - 1, "Error: Invalid Terminal found.", _str);
                 return;
             } else {
                 for (auto &&i : analysisStack)
@@ -550,8 +548,8 @@ void LL1::_makeTable() {
                     select.emplace_back(item);
                 //printf("%s: %s \n",_rules[rule_cnt],select);
                 break;
-            } else if (!((code >= 65) && (code <= 90))) { //printf("terminal\n");
-                                                          // 终止符若没有记录过则加入
+            } else if (!((code >= 65) && (code <= 90))) {
+                // 终止符若没有记录过则加入
                 prev_exist = 0;
                 does_exist = false;
                 for (prev_exist = 0; prev_exist < select.size(); prev_exist++) {
@@ -564,8 +562,8 @@ void LL1::_makeTable() {
                     //printf("%s: %s \n",_rules[rule_cnt],select);
                     break;
                 }
-            } else if ((code >= 65) && (code <= 90)) { //	printf("non-terminal\n");
-                                                       // 查找非终止符的 select
+            } else if ((code >= 65) && (code <= 90)) {
+                // 查找非终止符的 select
                 code_index  = _nonTerminatorsToIdx[rule_rhs[rule_length_cnt]];
                 is_nullable = false;
                 for (first_cnt = 0; first_cnt < _firstSet[code_index].size(); first_cnt++) {
@@ -609,9 +607,13 @@ void LL1::_makeTable() {
 
         printf("SELECT(%s) = { ", _rules[rule_cnt]);
         for (first_cnt = 0; first_cnt < select.size(); first_cnt++) {
-            first_t                                          = select[first_cnt];
-            first_t_index                                    = _terminatorsToIdx[first_t];
-            _analysisTable[left_non_term_idx][first_t_index] = rule_cnt;
+            first_t       = select[first_cnt];
+            first_t_index = _terminatorsToIdx[first_t];
+            if (_analysisTable[left_non_term_idx][first_t_index] == -1 || _analysisTable[left_non_term_idx][first_t_index] == rule_cnt) {
+                _analysisTable[left_non_term_idx][first_t_index] = rule_cnt;
+            } else {
+                error("Error: duplicate analysis table entry");
+            }
             // if (first_t == '#') printf("%c, %d, %d\n", first_t, first_t_index, rule_cnt);
             printf("%c", first_t);
             if (first_cnt != select.size() - 1) printf(", ");
