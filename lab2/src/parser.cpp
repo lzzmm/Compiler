@@ -11,12 +11,10 @@
  TODO:
  1. class LL1 tbd
     1. read one rule with "|" and spilt into two rules
-    2. auto generate first, terminal and parsing table
-    3. parsing with ll(1)
+    2. auto generate first, follow and parsing table done
+    3. parsing with ll(1) done
  2. class LR0 tbd
     1. 
- 3. write report 0%
- 4. make the code more clean and beautiful 0%
 */
 
 #include <algorithm>
@@ -121,8 +119,6 @@ void LL1::parse(FILE *fp) {
     while (_str[str_size - 1] == '\n') str_size--;
     _str[str_size++] = '#';
     _str[str_size++] = '\0';
-    // TODO:
-    // parse the string with the table
     char x, w;
     bool get_next    = true;
     int  str_pointer = 0,
@@ -211,7 +207,6 @@ void LL1::parse(FILE *fp) {
             break;
         }
     }
-    // print the result
 }
 
 void LL1::readGrammarRules(FILE *fp) {
