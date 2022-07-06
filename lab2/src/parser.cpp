@@ -4,6 +4,7 @@
 // Date: 2022-05-07
 //
 // Parser in LL(1) and LR(0)
+// Compile: g++ -o parser parser.cpp
 
 /*
  TODO:
@@ -31,6 +32,21 @@
 #define MAX_RULE_SIZE 32
 #define MAX_TOKEN_NUM 100
 
+// print error message
+void error(const char errorMsg[]) {
+    std::cout << errorMsg << std::endl;
+}
+
+// print error message with index of syntax error
+void error(int indexOfSyntaxError, const char errorMsg[], const char str[]) {
+    std::cout << "At index [" << indexOfSyntaxError << "]: ";
+    error(errorMsg);
+    std::cout << str << std::endl;
+    for (int i = 0; i < indexOfSyntaxError; i++) {
+        std::cout << ' ';
+    }
+    std::cout << '^' << std::endl;
+}
 class LL1 {
 public:
     LL1(){};
@@ -50,7 +66,7 @@ private:
 
     unsigned int                     _rule_num = 0;
     char                             _rules[MAX_RULE_NUM][MAX_RULE_SIZE];
-    char                             _str[MAX_TOKEN_NUM];
+    char                             _str[MAX_TOKEN_NUM + 2];
     std::vector<std::vector<int>>    _analysisTable;
     std::vector<char>                _terminators;
     std::vector<char>                _nonTerminators;
@@ -101,10 +117,103 @@ int main(int argc, char *argv[]) {
 void LL1::parse(FILE *fp) {
     fgets(_str, MAX_TOKEN_NUM, fp);
     unsigned int str_size = strlen(_str);
-    _str[str_size++]      = '#';
-    _str[str_size++]      = '\0';
+    while (_str[str_size - 1] == '\n') str_size--;
+    _str[str_size++] = '#';
+    _str[str_size++] = '\0';
+    // TODO:
+    // parse the string with the table
+    bool get_next = true;
+    char cur_term,
+        cur_non_term,
+        x,
+        w;
+    int str_pointer = 0,
+        cur_non_term_idx,
+        cur_term_idx,
+        cur_rule_no;
+    std::vector<char> analysisStack;
+    analysisStack.push_back('#');
+    analysisStack.push_back(_nonTerminators[0]);
+
     printf("\nString Received: %s\n\n", _str);
-    //TODO:
+    printf("Stack");
+    printf("\t ");
+    printf("CurSYM");
+    printf("\t ");
+    printf("Str");
+    printf("\t ");
+    printf("OP\n", w);
+
+    while (true) {
+        // for (auto &&i : analysisStack)
+        //     printf("%c", i);
+        // printf("\n");
+        x = analysisStack.back();
+        analysisStack.pop_back();
+        // printf("x: %c, %d\n", x, x);
+        if (get_next) {
+            w        = _str[str_pointer++];
+            // printf("w: %c\n", w);
+            get_next = false;
+        }
+        if (_terminatorsToIdx.find(x) != _terminatorsToIdx.end()) {
+            if (x == '#' && w == '#') {
+                printf("\033[31m%c\033[0m", x);
+                printf("\t ");
+                printf("%c", w);
+                printf("\t ");
+                printf("\t ");
+                printf("\033[33mSuccessfully parsed.\033[0m\n");
+                break;
+            } else if (x == w) {
+                get_next = true;
+                for (auto &&i : analysisStack)
+                    printf("%c", i);
+                printf("\033[31m%c\033[0m", x);
+                printf("\t ");
+                printf("%c", w);
+                printf("\t ");
+                for (int i = str_pointer; _str[i] != '\0'; i++)
+                    printf("%c", _str[i]);
+                printf("\t ");
+                printf("\033[33mAccepted %c\033[0m\n", w);
+                continue;
+            } else if (x == 'e') {
+                continue;
+            } else {
+                error(str_pointer - 1, "Error: Unexpected Terminal found.", _str);
+                return;
+            }
+        } else if (_nonTerminatorsToIdx.find(x) != _nonTerminatorsToIdx.end()) {
+            cur_term_idx     = _terminatorsToIdx[w];
+            cur_non_term_idx = _nonTerminatorsToIdx[x];
+            cur_rule_no      = _analysisTable[cur_non_term_idx][cur_term_idx];
+            if (cur_rule_no == -1) {
+                error(str_pointer - 1, "Error: Unexpected Terminal found.", _str);
+                return;
+            } else {
+                for (auto &&i : analysisStack)
+                    printf("%c", i);
+                printf("\033[31m%c\033[0m", x);
+                printf("\t ");
+                printf("%c", w);
+                printf("\t ");
+                for (int i = str_pointer; _str[i] != '\0'; i++)
+                    printf("%c", _str[i]);
+                printf("\t ");
+                printf("Select %s \033[32m%d\033[0m\n", _rules[cur_rule_no], cur_rule_no);
+                for (int i = strlen(_rules[cur_rule_no]); i > RHS_OFFSET; i--) {
+                    if (_rules[cur_rule_no][i] != '\0') analysisStack.push_back(_rules[cur_rule_no][i]);
+                }
+                get_next = false;
+                continue;
+            }
+        } else {
+            error(str_pointer - 1, "Error: Unexpected Terminal found.", _str);
+            break;
+        }
+    }
+    // print the result
 }
 
 void LL1::readGrammarRules(FILE *fp) {
@@ -172,6 +281,7 @@ void LL1::_getTermNTerm() {
             }
         }
     }
+    _terminatorsToIdx['e'] = -1;
     _terminatorsToIdx['#'] = _terminators.size();
     _terminators.push_back('#'); // '#'
     // _terminators.push_back('\0');
@@ -399,6 +509,8 @@ void LL1::_getFollowSet() {
     printf("\n");
 }
 
+// This function returns the index of the first given non-terminal in given string.
+// If not found, it returns -1.
 int LL1::_getFirstNonTerm(char *str, char *non_term) {
     for (int i = 0; i < strlen(str); i++) {
         if ((str[i] >= 65) && (str[i] <= 90)) {
